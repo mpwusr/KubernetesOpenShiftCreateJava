@@ -29,7 +29,7 @@ kubectl create rolebinding default-admin-binding \
   --clusterrole=admin \
   --serviceaccount=test:default \
   --namespace=test
-``
+```
 ## Export Bearer token
 ```
 export BEARER_TOKEN=$(kubectl create token default)
@@ -40,5 +40,6 @@ export BEARER_TOKEN=$(kubectl create token default)
 ./gradlew shadowJar
 ```
 ## Run code
+```
 java -jar build/libs/KubernetesOpenShiftCreateJava-all.jar
-
+```
