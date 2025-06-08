@@ -23,10 +23,17 @@ kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authori
 ```
 kubectl create namespace test
 ```
-## give default service account admin privileges in test namespace
+## give default cluster-level service account edit privileges in all namespaces
 ```
 kubectl create clusterrolebinding default-sa-cluster-edit \
   --clusterrole=edit \
+  --serviceaccount=default:default
+```
+## give default cluster-level service account edit privileges in just test namespaces
+```
+kubectl create rolebinding default-sa-deployer \
+  --namespace=test \
+  --role=edit \
   --serviceaccount=default:default
 ```
 ## Export Bearer token
