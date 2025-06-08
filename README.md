@@ -15,3 +15,16 @@ michaelwilliams@Michaels-MBP ~ % kubectl get nodes
 NAME                   STATUS   ROLES                  AGE     VERSION
 lima-rancher-desktop   Ready    control-plane,master   6m18s   v1.32.5+k3s1
 ```
+## Extract certificate from Kubeconfig
+```
+kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > openshift-ca.crt
+```
+## Export Bearer token
+```
+export BEARER_TOKEN=$(kubectl create token default)
+```
+## Compile code
+
+## Run code
+java -jar build/libs/KubernetesOpenShiftCreateJava-all.jar
+
