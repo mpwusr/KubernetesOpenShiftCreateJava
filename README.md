@@ -23,8 +23,11 @@ kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authori
 ```
 export BEARER_TOKEN=$(kubectl create token default)
 ```
-## Compile code
-
+## Build and Compile code
+```
+./gradlew clean build
+./gradlew shadowJar
+```
 ## Run code
 java -jar build/libs/KubernetesOpenShiftCreateJava-all.jar
 
