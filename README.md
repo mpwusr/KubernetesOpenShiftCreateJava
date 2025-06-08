@@ -7,7 +7,7 @@ kubectl get nodes
 
 NAME                   STATUS   ROLES                  AGE     VERSION
 lima-rancher-desktop   Ready    control-plane,master   4m44s   v1.32.5+k3s1
-michaelwilliams@Michaels-MBP ~ % vi ~/.zshrc
+michaelwilliams@Michaels-MBP ~ % echo 'export KUBECONFIG=~/k3s.yaml' >> ~/.zshrc
 michaelwilliams@Michaels-MBP ~ % source ~/.zshrc
 michaelwilliams@Michaels-MBP ~ % kubectl get nodes
 NAME                   STATUS   ROLES                  AGE     VERSION
