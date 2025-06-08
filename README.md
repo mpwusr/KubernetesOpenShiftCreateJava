@@ -25,10 +25,9 @@ kubectl create namespace test
 ```
 ## give default service account admin privileges in test namespace
 ```
-kubectl create rolebinding default-admin-binding \
-  --clusterrole=admin \
-  --serviceaccount=test:default \
-  --namespace=test
+kubectl create clusterrolebinding default-sa-cluster-edit \
+  --clusterrole=edit \
+  --serviceaccount=default:default
 ```
 ## Export Bearer token
 ```
