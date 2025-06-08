@@ -19,6 +19,17 @@ lima-rancher-desktop   Ready    control-plane,master   6m18s   v1.32.5+k3s1
 ```
 kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > openshift-ca.crt
 ```
+## Create a test namespace
+```
+kubectl create namespace test
+```
+## give default service account admin privileges in test namespace
+```
+kubectl create rolebinding default-admin-binding \
+  --clusterrole=admin \
+  --serviceaccount=test:default \
+  --namespace=test
+``
 ## Export Bearer token
 ```
 export BEARER_TOKEN=$(kubectl create token default)
