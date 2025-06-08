@@ -1,4 +1,6 @@
 ## KubernetesOpenShiftCreateJava
+
+## Make sure you have access to the Rancher K3S cluster
 ```
 michaelwilliams@Michaels-MBP ~ % rdctl shell sudo cat /etc/rancher/k3s/k3s.yaml > ~/k3s.yaml
 
