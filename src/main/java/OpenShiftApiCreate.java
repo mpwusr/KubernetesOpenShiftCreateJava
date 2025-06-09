@@ -9,7 +9,7 @@ public class OpenShiftApiCreate {
         String token = System.getenv("BEARER_TOKEN");
         String caCertPath = "./openshift-ca.crt";
         String apiServer = "https://127.0.0.1:6443";
-        String namespace = "default";
+        String namespace = "test";
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .sslSocketFactory(
