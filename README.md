@@ -15,9 +15,14 @@ michaelwilliams@Michaels-MBP ~ % kubectl get nodes
 NAME                   STATUS   ROLES                  AGE     VERSION
 lima-rancher-desktop   Ready    control-plane,master   6m18s   v1.32.5+k3s1
 ```
-## Extract certificate from Kubeconfig
+## Extract certificate from Kubeconfig (linux)
 ```
 kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d > openshift-ca.crt
+```
+## Extract certificate from Kubeconfig (windows)
+```
+kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' > encoded.txt
+certutil -decode encoded.txt openshift-ca.crt 
 ```
 ## Create a test namespace
 ```
