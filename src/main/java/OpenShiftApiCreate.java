@@ -6,10 +6,14 @@ import java.nio.file.Paths;
 
 public class OpenShiftApiCreate {
     public static void main(String[] args) throws Exception {
-        String token = System.getenv("BEARER_TOKEN");
-        String caCertPath = "./openshift-ca.crt";
-        String apiServer = "https://127.0.0.1:6443";
-        String namespace = "test";
+        Dotenv dotenv = Dotenv.configure()
+                .filename(".env") // optional if file is named `.env`
+                .load();
+
+        String token = dotenv.get("BEARER_TOKEN");
+        String caCertPath = dotenv.get("CA_CERT_PATH", "./openshift-ca.crt");
+        String apiServer = dotenv.get("API_SERVER", "https://127.0.0.1:6443");
+        String namespace = dotenv.get("NAMESPACE", "test");
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .sslSocketFactory(
