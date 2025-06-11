@@ -19,29 +19,35 @@ public class OpenShiftApiCreate {
         String caCertPath = dotenv.get("CA_CERT_PATH", "./openshift-ca.crt");
         String apiServer = dotenv.get("API_SERVER", "https://127.0.0.1:6443");
         String namespace = dotenv.get("NAMESPACE", "test");
-        String deploymentUriStr = dotenv.get("DEPLOYMENT_URI");
+        String deploymentUriStr = dotenv.get("DEPLOYMENT_URI",
+                "https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controllers/nginx-deployment.yaml");
 
         URI deploymentUri = URI.create(deploymentUriStr);
-        InputStream inputStream;
+        Map<String, Object> obj;
 
         if (deploymentUri.getScheme().startsWith("http")) {
             OkHttpClient fetchClient = new OkHttpClient();
             Request fetchRequest = new Request.Builder().url(deploymentUriStr).build();
             try (Response response = fetchClient.newCall(fetchRequest).execute()) {
-                if (!response.isSuccessful()) throw new RuntimeException("Failed to fetch deployment file");
-                inputStream = response.body().byteStream();
+                if (!response.isSuccessful() || response.body() == null) {
+                    throw new RuntimeException("Failed to fetch deployment file");
+                }
+                try (InputStream inputStream = response.body().byteStream()) {
+                    ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+                    obj = yamlReader.readValue(inputStream, Map.class);
+                }
             }
         } else if (deploymentUri.getScheme().equals("file")) {
-            inputStream = Files.newInputStream(Paths.get(deploymentUri));
+            try (InputStream inputStream = Files.newInputStream(Paths.get(deploymentUri))) {
+                ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
+                obj = yamlReader.readValue(inputStream, Map.class);
+            }
         } else {
             throw new IllegalArgumentException("Unsupported URI scheme for DEPLOYMENT_URI: " + deploymentUriStr);
         }
 
-        // YAML to JSON conversion
-        ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-        ObjectMapper jsonWriter = new ObjectMapper();
-        Map<String, Object> obj = yamlReader.readValue(inputStream, Map.class);
-        String jsonBody = jsonWriter.writeValueAsString(obj);
+        // Convert parsed YAML to JSON string
+        String jsonBody = new ObjectMapper().writeValueAsString(obj);
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .sslSocketFactory(
@@ -61,7 +67,7 @@ public class OpenShiftApiCreate {
 
         try (Response response = client.newCall(request).execute()) {
             System.out.println("Status: " + response.code());
-            System.out.println("Body: " + response.body().string());
+            System.out.println("Body: " + (response.body() != null ? response.body().string() : "No response body"));
         }
     }
 }
