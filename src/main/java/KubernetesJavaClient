@@ -1,0 +1,56 @@
+import io.kubernetes.client.openapi.apis.*;
+import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.Configuration;
+import io.kubernetes.client.util.*;
+import io.kubernetes.client.util.credentials.AccessTokenAuthentication;
+
+import java.io.FileReader;
+import java.util.List;
+import java.util.Map;
+
+public class DeployCoherenceYaml {
+    public static void main(String[] args) throws Exception {
+        // 1. Set up API client
+        ApiClient client = ClientBuilder.standard().build();
+        Configuration.setDefaultApiClient(client);
+
+        // 2. Load multi-doc YAML
+        List<Object> objs = Yaml.loadAll(new FileReader("coherence-combined.yaml"));
+
+        // 3. Loop through and apply each
+        CoreV1Api coreApi = new CoreV1Api();
+        CustomObjectsApi customApi = new CustomObjectsApi();
+
+        String ns = "default";
+
+        for (Object obj : objs) {
+            if (obj instanceof V1Service svc) {
+                System.out.println("Applying Service: " + svc.getMetadata().getName());
+                coreApi.createNamespacedService(ns, svc, null, null, null);
+            } else if (obj instanceof Map<?, ?> crdObj) {
+                // Handle Coherence CR generically
+                String kind = (String) ((Map<?, ?>) crdObj.get("kind"));
+                if ("Coherence".equals(kind)) {
+                    Map metadata = (Map) crdObj.get("metadata");
+                    String name = (String) metadata.get("name");
+
+                    System.out.println("Applying Coherence: " + name);
+
+                    customApi.createNamespacedCustomObject(
+                        "coherence.oracle.com",
+                        "v1",
+                        ns,
+                        "coherences",
+                        crdObj,
+                        null,
+                        null,
+                        null
+                    );
+                }
+            } else {
+                System.out.println("Unhandled object: " + obj.getClass());
+            }
+        }
+    }
+}
