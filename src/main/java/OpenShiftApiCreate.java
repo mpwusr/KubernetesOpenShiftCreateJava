@@ -1,62 +1,76 @@
 import io.github.cdimascio.dotenv.Dotenv;
 import okhttp3.*;
-
 import javax.net.ssl.X509TrustManager;
 import java.io.InputStream;
 import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Paths;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import java.util.Map;
 
 public class OpenShiftApiCreate {
-    public static void main(String[] args) throws Exception {
-        Dotenv dotenv = Dotenv.configure().filename(".env").load();
 
-        String token = dotenv.get("BEARER_TOKEN");
-        String caCertPath = dotenv.get("CA_CERT_PATH", "./openshift-ca.crt");
-        String apiServer = dotenv.get("API_SERVER", "https://127.0.0.1:6443");
-        String namespace = dotenv.get("NAMESPACE", "test");
-        String deploymentUriStr = dotenv.get("DEPLOYMENT_URI",
-                "https://raw.githubusercontent.com/kubernetes/website/main/content/en/examples/controllers/nginx-deployment.yaml");
+    /** Fail fast if an env var / .env entry is missing or empty. */
+    private static String requireEnv(Dotenv dotenv, String key) {
+        String val = dotenv.get(key);
+        if (val == null || val.isBlank()) {
+            throw new IllegalStateException(
+                    "Required environment variable " + key + " is not set");
+        }
+        return val;
+    }
+
+    public static void main(String[] args) throws Exception {
+        Dotenv dotenv = Dotenv.configure()
+                .filename(".env")   // still lets you override with real env vars
+                .load();
+
+        // ── REQUIRED settings ───────────────────────────────────────
+        String token           = requireEnv(dotenv, "BEARER_TOKEN");
+        String caCertPath      = requireEnv(dotenv, "CA_CERT_PATH");
+        String apiServer       = requireEnv(dotenv, "API_SERVER");
+        String namespace       = requireEnv(dotenv, "NAMESPACE");
+        String deploymentUriStr= requireEnv(dotenv, "DEPLOYMENT_URI");
+        // ────────────────────────────────────────────────────────────
 
         URI deploymentUri = URI.create(deploymentUriStr);
         Map<String, Object> obj;
 
+        // Fetch or load the YAML manifest
         if (deploymentUri.getScheme().startsWith("http")) {
             OkHttpClient fetchClient = new OkHttpClient();
             Request fetchRequest = new Request.Builder().url(deploymentUriStr).build();
             try (Response response = fetchClient.newCall(fetchRequest).execute()) {
                 if (!response.isSuccessful() || response.body() == null) {
-                    throw new RuntimeException("Failed to fetch deployment file");
+                    throw new RuntimeException("Failed to fetch deployment file: " + response);
                 }
-                try (InputStream inputStream = response.body().byteStream()) {
-                    ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-                    obj = yamlReader.readValue(inputStream, Map.class);
+                try (InputStream in = response.body().byteStream()) {
+                    obj = new ObjectMapper(new YAMLFactory()).readValue(in, Map.class);
                 }
             }
-        } else if (deploymentUri.getScheme().equals("file")) {
-            try (InputStream inputStream = Files.newInputStream(Paths.get(deploymentUri))) {
-                ObjectMapper yamlReader = new ObjectMapper(new YAMLFactory());
-                obj = yamlReader.readValue(inputStream, Map.class);
+        } else if ("file".equals(deploymentUri.getScheme())) {
+            try (InputStream in = Files.newInputStream(Paths.get(deploymentUri))) {
+                obj = new ObjectMapper(new YAMLFactory()).readValue(in, Map.class);
             }
         } else {
-            throw new IllegalArgumentException("Unsupported URI scheme for DEPLOYMENT_URI: " + deploymentUriStr);
+            throw new IllegalArgumentException(
+                    "Unsupported URI scheme for DEPLOYMENT_URI: " + deploymentUriStr);
         }
 
-        // Convert parsed YAML to JSON string
+        // YAML → JSON
         String jsonBody = new ObjectMapper().writeValueAsString(obj);
 
         OkHttpClient client = new OkHttpClient.Builder()
                 .sslSocketFactory(
                         SSLSocketFactoryUtil.fromCAFile(caCertPath),
-                        (X509TrustManager) SSLSocketFactoryUtil.trustManagerFromCA(caCertPath).getTrustManagers()[0]
-                )
+                        (X509TrustManager) SSLSocketFactoryUtil
+                                .trustManagerFromCA(caCertPath)
+                                .getTrustManagers()[0])
                 .build();
 
-        RequestBody body = RequestBody.create(jsonBody, MediaType.parse("application/json"));
+        RequestBody body = RequestBody.create(jsonBody,
+                MediaType.parse("application/json"));
 
         Request request = new Request.Builder()
                 .url(apiServer + "/apis/apps/v1/namespaces/" + namespace + "/deployments")
@@ -67,7 +81,8 @@ public class OpenShiftApiCreate {
 
         try (Response response = client.newCall(request).execute()) {
             System.out.println("Status: " + response.code());
-            System.out.println("Body: " + (response.body() != null ? response.body().string() : "No response body"));
+            System.out.println("Body: " +
+                    (response.body() != null ? response.body().string() : "No response body"));
         }
     }
 }
