@@ -1,0 +1,39 @@
+apiVersion: coherence.oracle.com/v1
+kind: Coherence
+metadata:
+  name: example-cluster
+spec:
+  replicas: 1
+  image: <your-image-registry>/pscoh-cache-coherence:feature_jan2025-2025.1.0-snapshot-46
+  application:
+    main: com.tangosol.net.DefaultCacheServer
+
+  # Shared volume between initContainer and main container
+  volumes:
+    - name: cache-jar
+      emptyDir: {}
+
+  initContainers:
+    - name: jar-injector
+      image: <your-image-registry>/pscoh-cache-coherence:feature_jan2025-2025.1.0-snapshot-46
+      command:
+        - sh
+        - -c
+        - |
+          echo "[INIT] Copying JARs from /apps/psoh-cache-coherence/lib to /coherence/ext" && \
+          cp /apps/psoh-cache-coherence/lib/*.jar /coherence/ext || echo "[WARN] No JARs found"
+      volumeMounts:
+        - name: cache-jar
+          mountPath: /coherence/ext
+
+  containers:
+    - name: coherence
+      image: <your-image-registry>/pscoh-cache-coherence:feature_jan2025-2025.1.0-snapshot-46
+      command:
+        - java
+        - -cp
+        - "/coherence/ext/*"
+        - com.tangosol.net.DefaultCacheServer
+      volumeMounts:
+        - name: cache-jar
+          mountPath: /coherence/ext
