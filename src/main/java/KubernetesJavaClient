@@ -1,0 +1,158 @@
+import io.kubernetes.client.openapi.ApiClient;
+import io.kubernetes.client.openapi.Configuration;
+import io.kubernetes.client.openapi.apis.CoreV1Api;
+import io.kubernetes.client.openapi.apis.AppsV1Api;
+import io.kubernetes.client.openapi.apis.CustomObjectsApi;
+
+import io.kubernetes.client.openapi.models.*;
+import io.kubernetes.client.util.ClientBuilder;
+import io.kubernetes.client.util.Yaml;
+
+import java.io.FileReader;
+import java.util.List;
+import java.util.Map;
+
+public class K8sUnifiedYamlClient {
+
+    private final ApiClient client;
+    private final CoreV1Api core;
+    private final AppsV1Api apps;
+    private final CustomObjectsApi custom;
+
+    private final String namespace;
+
+    public K8sUnifiedYamlClient(String namespace) throws Exception {
+        this.client = ClientBuilder.standard().build();
+        Configuration.setDefaultApiClient(client);
+        this.core = new CoreV1Api();
+        this.apps = new AppsV1Api();
+        this.custom = new CustomObjectsApi();
+        this.namespace = namespace;
+    }
+
+    public void apply(String yamlPath) throws Exception {
+        List<Object> resources = Yaml.loadAll(new FileReader(yamlPath));
+        for (Object obj : resources) handleResource(obj, "create");
+    }
+
+    public void delete(String yamlPath) throws Exception {
+        List<Object> resources = Yaml.loadAll(new FileReader(yamlPath));
+        for (Object obj : resources) handleResource(obj, "delete");
+    }
+
+    public void scale(String kind, String name, int replicas) throws Exception {
+        switch (kind) {
+            case "StatefulSet" -> {
+                V1Scale scale = new V1Scale().spec(new V1ScaleSpec().replicas(replicas));
+                apps.patchNamespacedStatefulSetScale(name, namespace, scale, null, null, null, null);
+                System.out.println("✔ Scaled StatefulSet " + name + " to " + replicas);
+            }
+
+            case "Coherence" -> {
+                Map<String, Object> patch = Map.of("spec", Map.of("replicas", replicas));
+                custom.patchNamespacedCustomObject(
+                        "coherence.oracle.com", "v1", namespace, "coherences", name, patch, null, null, null);
+                System.out.println("✔ Scaled Coherence " + name + " to " + replicas);
+            }
+
+            default -> System.out.println("⚠️ Scaling not supported for: " + kind);
+        }
+    }
+
+    private void handleResource(Object obj, String action) throws Exception {
+        if (!(obj instanceof Map)) {
+            System.out.println("⚠️ Skipping unknown object type.");
+            return;
+        }
+        Map<String, Object> res = (Map<String, Object>) obj;
+        String kind = (String) res.get("kind");
+        Map<String, Object> metadata = (Map<String, Object>) res.get("metadata");
+        String name = (String) metadata.get("name");
+
+        switch (kind) {
+            case "Service" -> {
+                V1Service svc = Yaml.convertValue(res, V1Service.class);
+                if (action.equals("create")) {
+                    core.createNamespacedService(namespace, svc, null, null, null);
+                    System.out.println("✔ Created Service " + name);
+                } else {
+                    core.deleteNamespacedService(name, namespace, null, null, null, null, null, null);
+                    System.out.println("🗑 Deleted Service " + name);
+                }
+            }
+
+            case "ConfigMap" -> {
+                V1ConfigMap cm = Yaml.convertValue(res, V1ConfigMap.class);
+                if (action.equals("create")) {
+                    core.createNamespacedConfigMap(namespace, cm, null, null, null);
+                    System.out.println("✔ Created ConfigMap " + name);
+                } else {
+                    core.deleteNamespacedConfigMap(name, namespace, null, null, null, null, null, null);
+                    System.out.println("🗑 Deleted ConfigMap " + name);
+                }
+            }
+
+            case "PersistentVolumeClaim" -> {
+                V1PersistentVolumeClaim pvc = Yaml.convertValue(res, V1PersistentVolumeClaim.class);
+                if (action.equals("create")) {
+                    core.createNamespacedPersistentVolumeClaim(namespace, pvc, null, null, null);
+                    System.out.println("✔ Created PVC " + name);
+                } else {
+                    core.deleteNamespacedPersistentVolumeClaim(name, namespace, null, null, null, null, null, null);
+                    System.out.println("🗑 Deleted PVC " + name);
+                }
+            }
+
+            case "StatefulSet" -> {
+                V1StatefulSet sts = Yaml.convertValue(res, V1StatefulSet.class);
+                if (action.equals("create")) {
+                    apps.createNamespacedStatefulSet(namespace, sts, null, null, null);
+                    System.out.println("✔ Created StatefulSet " + name);
+                } else {
+                    apps.deleteNamespacedStatefulSet(name, namespace, null, null, null, null, null, null);
+                    System.out.println("🗑 Deleted StatefulSet " + name);
+                }
+            }
+
+            case "Coherence" -> {
+                if (action.equals("create")) {
+                    custom.createNamespacedCustomObject("coherence.oracle.com", "v1", namespace,
+                            "coherences", res, null, null, null);
+                    System.out.println("✔ Created Coherence CR: " + name);
+                } else {
+                    custom.deleteNamespacedCustomObject("coherence.oracle.com", "v1", namespace,
+                            "coherences", name, null, null, null, null, null);
+                    System.out.println("🗑 Deleted Coherence CR: " + name);
+                }
+            }
+
+            default -> System.out.println("⚠️ Unsupported kind: " + kind);
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+        if (args.length < 2) {
+            System.err.println("Usage: java K8sUnifiedYamlClient <create|delete|patch> <file|name> [kind] [replicas]");
+            return;
+        }
+
+        String command = args[0];
+        String target = args[1];
+        String namespace = "default"; // or from env
+
+        K8sUnifiedYamlClient tool = new K8sUnifiedYamlClient(namespace);
+
+        switch (command) {
+            case "create" -> tool.apply(target);
+            case "delete" -> tool.delete(target);
+            case "patch" -> {
+                if (args.length != 4) {
+                    System.err.println("Usage for patch: patch <name> <kind> <replicas>");
+                    return;
+                }
+                tool.scale(args[2], args[1], Integer.parseInt(args[3]));
+            }
+            default -> System.err.println("Unknown command: " + command);
+        }
+    }
+}

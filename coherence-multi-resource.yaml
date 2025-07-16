@@ -1,0 +1,75 @@
+# ConfigMap
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: coherence-config
+data:
+  config.xml: |
+    <cache-config>
+      <!-- your coherence config here -->
+    </cache-config>
+
+---
+# PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: coherence-storage
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+
+---
+# Service
+apiVersion: v1
+kind: Service
+metadata:
+  name: coherence-service
+spec:
+  selector:
+    app: coherence
+  ports:
+    - port: 7574
+      targetPort: 7574
+
+---
+# StatefulSet
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: coherence
+spec:
+  serviceName: coherence-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: coherence
+  template:
+    metadata:
+      labels:
+        app: coherence
+    spec:
+      containers:
+        - name: coherence
+          image: oracle/coherence:21.12
+          ports:
+            - containerPort: 7574
+          volumeMounts:
+            - name: config-vol
+              mountPath: /coherence/config
+      volumes:
+        - name: config-vol
+          configMap:
+            name: coherence-config
+
+---
+# Coherence CRD
+apiVersion: coherence.oracle.com/v1
+kind: Coherence
+metadata:
+  name: cluster-a
+spec:
+  replicas: 1
+  image: oracle/coherence:21.12
